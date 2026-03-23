@@ -1,9 +1,9 @@
 # Product Requirements Document
 ## Project: "Google in a Day" — Web Crawler & Real-Time Search Engine
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-03-23  
-**Status:** Draft — Pending Team Review  
+**Status:** Draft — Language & Concurrency Locked  
 
 ---
 
@@ -96,12 +96,13 @@ The system consists of two cooperating subsystems that share a single in-memory 
 - The crawler SHALL enforce a maximum URL queue depth (configurable, default: 1000). If the queue is full, new URLs SHALL be dropped rather than causing unbounded memory growth.
 - Optionally, the crawler MAY enforce a per-domain request rate limit (e.g., max 5 req/sec per domain).
 
-#### FR-4: Native HTTP Only
-- All HTTP requests SHALL use only the standard library's HTTP client (e.g., `net/http` in Go, `urllib` in Python, `http`/`https` in Node.js).
-- HTML link extraction SHALL use only the standard library or a minimal hand-written parser — NOT Beautiful Soup, Cheerio, Scrapy, or equivalent high-level libraries.
-- The crawler SHALL follow HTTP redirects natively.
+#### FR-4: Native HTTP Only (Python Constraint)
+- All HTTP requests SHALL use only `urllib.request` from the Python standard library. `httpx`, `requests`, `aiohttp`, and equivalents are explicitly forbidden.
+- HTML link extraction SHALL use only Python's stdlib `html.parser` (via `html.parser.HTMLParser`) — NOT Beautiful Soup, lxml, or Scrapy.
+- The crawler SHALL follow HTTP redirects natively via `urllib`'s redirect handler.
 - The crawler SHALL set a reasonable request timeout (default: 10 seconds).
-- The crawler SHALL set a descriptive `User-Agent` header (e.g., `GoInADayCrawler/1.0`).
+- The crawler SHALL set a descriptive `User-Agent` header (e.g., `PythonInADayCrawler/1.0`).
+- Since `urllib` is synchronous, HTTP calls SHALL be offloaded to a thread pool executor (`asyncio.get_event_loop().run_in_executor`) so they do not block the async event loop.
 
 #### FR-5: Link Extraction Rules
 - The crawler SHALL extract only `<a href="...">` links from HTML pages.
@@ -139,11 +140,15 @@ The system consists of two cooperating subsystems that share a single in-memory 
 
 ### 7.1 Concurrency & Thread Safety
 
+The system uses **Python's `asyncio` event loop** as its concurrency model. The following rules apply:
+
 | Requirement | Detail |
 |---|---|
-| NFR-1: No data races | All shared data structures (index, visited set, queue) MUST be protected by synchronization primitives. |
-| NFR-2: Deadlock-free | Lock acquisition order MUST be consistent. Locks MUST NOT be held while performing I/O. |
-| NFR-3: Search non-blocking | Search reads MUST use read locks (e.g., `sync.RWMutex`) so multiple queries can run concurrently. |
+| NFR-1: No shared-state corruption | All shared data structures (index, visited set, queue) MUST be accessed only from the event loop thread. Since `asyncio` is single-threaded, dict/set operations are safe without locks — but any code touching shared state MUST NOT be called from a thread-pool executor. |
+| NFR-2: Thread pool isolation | `urllib` calls run in `run_in_executor`. These threads MUST NOT read or write shared state directly. They return raw data (HTML string, status code) to the event loop via `await`, where state updates happen safely. |
+| NFR-3: Semaphore-based concurrency cap | An `asyncio.Semaphore` SHALL limit the number of concurrent in-flight fetch coroutines (default: 10). This replaces the need for mutexes on the worker count. |
+| NFR-4: Queue back-pressure | An `asyncio.Queue` with a `maxsize` SHALL serve as the URL work queue. When full, `put_nowait` SHALL raise `asyncio.QueueFull` and the URL SHALL be dropped — no blocking. |
+| NFR-5: Search non-blocking | Since search runs on the same event loop, it reads shared state directly (no lock needed). Long search scans MUST yield periodically (`await asyncio.sleep(0)`) to avoid starving crawler coroutines. |
 
 ### 7.2 Performance
 
@@ -165,18 +170,27 @@ The system consists of two cooperating subsystems that share a single in-memory 
 
 ```
 # Start crawler
-./crawler --url https://example.com --depth 3 --workers 10 --queue-size 1000 [--same-domain]
+python main.py --url https://example.com --depth 3 --workers 10 --queue-size 1000 \
+               --scope same-domain   # options: same-domain | same-origin | all
 
 # Query (runs interactively while crawler runs, or post-crawl)
-> search golang concurrency
+> search python concurrency
 Results (3 found):
-  1. https://go.dev/doc/effective_go  (origin: https://go.dev, depth: 1, score: 47)
-  2. https://go.dev/blog/pipelines     (origin: https://go.dev, depth: 2, score: 23)
-  3. https://pkg.go.dev/sync           (origin: https://go.dev, depth: 3, score: 11)
+  1. https://docs.python.org/asyncio        (origin: https://docs.python.org, depth: 1, score: 47)
+  2. https://docs.python.org/threading      (origin: https://docs.python.org, depth: 2, score: 23)
+  3. https://realpython.com/async-io-python (origin: https://docs.python.org, depth: 3, score: 11)
 
 > stats
-Crawled: 312 pages | Queued: 88 | Workers: 10/10 active | Elapsed: 00:01:42
+Crawled: 312 pages | Queued: 88 | Workers: 10/10 active | Elapsed: 00:01:42 | Dropped: 5
 ```
+
+### `--scope` Flag Behaviour
+
+| Value | Behaviour |
+|---|---|
+| `same-domain` | Only follow links whose hostname matches the seed URL's hostname (e.g., `docs.python.org` stays on `docs.python.org`) |
+| `same-origin` | Only follow links whose scheme + hostname + port match exactly |
+| `all` | Follow any HTTP/HTTPS link regardless of domain |
 
 ---
 
@@ -195,17 +209,19 @@ Crawled: 312 pages | Queued: 88 | Workers: 10/10 active | Elapsed: 00:01:42
 ```
 
 ### VisitedSet
-- Underlying type: Hash set (e.g., `map[string]bool` in Go, `set` in Python)
-- Synchronization: Mutex (write lock on add, read lock on check)
+- Underlying type: Python `set` of URL strings
+- Synchronization: **None required** — only accessed from the event loop thread
+- Before enqueuing, membership check is O(1)
 
 ### URL Queue
-- Underlying type: Bounded channel or bounded queue
-- Each entry: `{url: string, depth: int, origin_url: string}`
-- Back-pressure mechanism: Drop new entries when queue is at capacity
+- Underlying type: `asyncio.Queue(maxsize=N)`
+- Each entry: `(url: str, depth: int, origin_url: str)`
+- Back-pressure: `put_nowait()` raises `QueueFull` when at capacity → URL is silently dropped and logged
 
 ### Index Store
-- Underlying type: Hash map keyed on URL
-- Synchronization: Read-write mutex (concurrent reads, exclusive writes)
+- Underlying type: Python `dict` keyed on URL string
+- Synchronization: **None required** — only written/read from event loop thread
+- Values: `IndexEntry` dataclass instances
 
 ---
 
@@ -233,14 +249,14 @@ This project is built using an AI-Augmented workflow. The following phases are d
 
 ## 11. Open Questions (To Be Decided)
 
-| # | Question | Options | Owner |
+| # | Question | Options | Status |
 |---|---|---|---|
-| OQ-1 | Implementation language | Python, Go, Node.js, Java | Team |
-| OQ-2 | Concurrency model | Threads+Mutex, Goroutines+Channels, Async/Await | Team |
-| OQ-3 | Domain scope | Single-domain only, Multi-domain, Configurable flag | Team |
-| OQ-4 | HTML parsing strategy | Hand-written state machine, stdlib `html.parser`, `encoding/xml` | Team |
-| OQ-5 | Shutdown trigger | SIGINT only, time limit, max-pages limit, all three | Team |
-| OQ-6 | Relevancy heuristic extension | TF-IDF, anchor text weighting, heading weighting | Team |
+| OQ-1 | Implementation language | ~~Python, Go, Node.js, Java~~ | ✅ **Python** |
+| OQ-2 | Concurrency model | ~~Threads+Mutex, Goroutines+Channels, Async/Await~~ | ✅ **asyncio + run_in_executor** |
+| OQ-3 | Domain scope | ~~Single-domain only, Multi-domain, Configurable flag~~ | ✅ **Configurable via `--scope`** |
+| OQ-4 | HTML parsing strategy | Hand-written parser vs. `html.parser.HTMLParser` subclass | ⏳ Open |
+| OQ-5 | Shutdown triggers | SIGINT only, max-pages limit, time limit, all three | ⏳ Open |
+| OQ-6 | Relevancy heuristic extension | Keyword frequency only, heading weighting, TF-IDF | ⏳ Open |
 
 ---
 
@@ -264,7 +280,7 @@ The project is considered complete when:
 3. The system does not crash or deadlock under concurrent crawl + search load.
 4. Search returns `(url, origin_url, depth)` triples ranked by the defined heuristic.
 5. A search query submitted mid-crawl returns results from the already-indexed pages.
-6. The race detector (or equivalent tool) reports zero data races.
+6. Running under `asyncio` debug mode (`PYTHONASYNCIODEBUG=1`) reports no coroutine or event loop violations.
 7. The system gracefully shuts down on SIGINT without hanging indefinitely.
 
 ---

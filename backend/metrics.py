@@ -11,6 +11,7 @@ class CrawlMetrics:
     dropped: int = 0
     workers_active: int = 0
     workers_max: int = 10
+    queue_max: int = 1000
     back_pressure: bool = False
     status: str = "IDLE"
     started_at: float = 0.0

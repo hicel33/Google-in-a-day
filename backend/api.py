@@ -20,6 +20,7 @@ def _metrics_payload(metrics: CrawlMetrics) -> dict[str, Any]:
         "dropped": metrics.dropped,
         "workers_active": metrics.workers_active,
         "workers_max": metrics.workers_max,
+        "queue_max": metrics.queue_max,
         "back_pressure": metrics.back_pressure,
         "status": metrics.status,
         "elapsed_seconds": metrics.elapsed_seconds(),
@@ -129,7 +130,9 @@ def create_app() -> FastAPI:
                 # Read current metrics each tick in case we restarted the crawl.
                 metrics = app.state.metrics
                 await ws.send_json(_metrics_payload(metrics))
-                await asyncio.sleep(1)
+                # Faster ticks while crawling so workers/queue/back-pressure stay visible between fetches.
+                delay = 0.25 if str(metrics.status).upper() == "RUNNING" else 1.0
+                await asyncio.sleep(delay)
         except WebSocketDisconnect:
             return
 

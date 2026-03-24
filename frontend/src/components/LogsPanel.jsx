@@ -9,10 +9,11 @@ function levelColor(level) {
   return "#93c5fd";
 }
 
-export function LogsPanel() {
+export function LogsPanel({ variant = "default" }) {
   const { logs } = useLogsSocket();
   const events = logs?.events || [];
   const scrollerRef = useRef(null);
+  const isPage = variant === "page";
 
   const formatted = useMemo(() => {
     return events
@@ -39,10 +40,16 @@ export function LogsPanel() {
     <div
       style={{
         width: "100%",
+        boxSizing: "border-box",
+        minWidth: 0,
         border: "1px solid #374151",
         borderRadius: 8,
         padding: 14,
         background: "rgba(2, 6, 23, 0.35)",
+        display: "flex",
+        flexDirection: "column",
+        flex: isPage ? 1 : undefined,
+        minHeight: isPage ? 0 : undefined,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
@@ -54,7 +61,10 @@ export function LogsPanel() {
         ref={scrollerRef}
         style={{
           marginTop: 10,
-          height: 320,
+          height: isPage ? undefined : 320,
+          flex: isPage ? 1 : undefined,
+          minHeight: isPage ? 240 : undefined,
+          maxHeight: isPage ? "calc(100vh - 220px)" : undefined,
           overflow: "auto",
           paddingRight: 8,
           border: "1px solid rgba(148, 163, 184, 0.18)",

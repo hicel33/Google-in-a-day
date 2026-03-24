@@ -172,6 +172,8 @@ class Crawler:
             metrics = CrawlMetrics(workers_max=self.config.max_workers)
 
         metrics.mark_running()
+        metrics.workers_max = self.config.max_workers
+        metrics.queue_max = self.config.queue_maxsize
         emit(
             "INFO",
             "CRAWL_START",
@@ -221,12 +223,15 @@ class Crawler:
             while True:
                 url, depth, origin = await queue.get()
                 try:
-                    metrics.queued = queue.qsize()
-                    emit("DEBUG", "FETCH_START", url=url, depth=depth, origin_url=origin)
-                    # Fetch concurrency cap
+                    # Hold the semaphore for the full URL lifecycle (fetch + parse + enqueue).
+                    # Otherwise workers_active only spikes during urllib, and 1s metrics ticks look like "0".
                     async with semaphore:
                         metrics.workers_active += 1
                         try:
+                            metrics.queued = queue.qsize()
+                            metrics.back_pressure = queue.full()
+                            emit("DEBUG", "FETCH_START", url=url, depth=depth, origin_url=origin)
+
                             html, final_url, status = await loop.run_in_executor(
                                 None,
                                 fetch_url_sync,
@@ -234,51 +239,53 @@ class Crawler:
                                 self.config.user_agent,
                                 self.config.timeout_s,
                             )
+
+                            if status != 200 or not html:
+                                continue
+
+                            final_canon = canonicalize_url(final_url)
+                            parser = LinkTitleTextParser(base_url=final_url)
+                            try:
+                                parser.feed(unescape(html))
+                            except Exception:
+                                emit("ERROR", "PARSE_FAILED", url=final_canon, depth=depth, status=status)
+                                continue
+
+                            title = parser.title.strip()
+                            body_text = parser.get_body_text().strip()
+
+                            index[final_canon] = IndexEntry(
+                                url=final_canon,
+                                origin_url=origin,
+                                depth=depth,
+                                title=title,
+                                body_text=body_text,
+                                crawled_at=time.time(),
+                            )
+                            metrics.crawled += 1
+                            emit(
+                                "INFO",
+                                "INDEXED",
+                                url=final_canon,
+                                depth=depth,
+                                title=title[:120],
+                                body_chars=len(body_text),
+                            )
+
+                            next_depth = depth + 1
+                            if next_depth > self.config.max_depth_k:
+                                continue
+
+                            for link in parser.links:
+                                await try_enqueue(link, next_depth, origin)
+
+                            metrics.queued = queue.qsize()
+                            metrics.back_pressure = queue.full()
                         finally:
                             metrics.workers_active -= 1
-
-                    if status != 200 or not html:
-                        continue
-
-                    final_canon = canonicalize_url(final_url)
-                    parser = LinkTitleTextParser(base_url=final_url)
-                    try:
-                        parser.feed(unescape(html))
-                    except Exception:
-                        # Parsing errors shouldn't halt crawl.
-                        emit("ERROR", "PARSE_FAILED", url=final_canon, depth=depth, status=status)
-                        continue
-
-                    title = parser.title.strip()
-                    body_text = parser.get_body_text().strip()
-
-                    index[final_canon] = IndexEntry(
-                        url=final_canon,
-                        origin_url=origin,
-                        depth=depth,
-                        title=title,
-                        body_text=body_text,
-                        crawled_at=time.time(),
-                    )
-                    metrics.crawled += 1
-                    emit(
-                        "INFO",
-                        "INDEXED",
-                        url=final_canon,
-                        depth=depth,
-                        title=title[:120],
-                        body_chars=len(body_text),
-                    )
-
-                    next_depth = depth + 1
-                    if next_depth > self.config.max_depth_k:
-                        continue
-
-                    for link in parser.links:
-                        # Parser already filters non-http(s); still apply scope + canon.
-                        await try_enqueue(link, next_depth, origin)
-
                 finally:
+                    metrics.queued = queue.qsize()
+                    metrics.back_pressure = queue.full()
                     queue.task_done()
 
         worker_tasks = [asyncio.create_task(worker(i)) for i in range(self.config.max_workers)]

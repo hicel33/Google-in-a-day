@@ -1,44 +1,24 @@
-import { MetricsDashboard } from "./components/MetricsDashboard.jsx";
-import { SearchPanel } from "./components/SearchPanel.jsx";
-import { CrawlControls } from "./components/CrawlControls.jsx";
-import { LogsPanel } from "./components/LogsPanel.jsx";
-import { useMetricsSocket } from "./hooks/useMetricsSocket.js";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AppShell } from "./components/AppShell.jsx";
+import { MetricsProvider } from "./context/MetricsContext.jsx";
+import { CrawlerPage } from "./pages/CrawlerPage.jsx";
+import { LogsPage } from "./pages/LogsPage.jsx";
+import { SearchPage } from "./pages/SearchPage.jsx";
 
 export default function App() {
-  const { metrics, connected } = useMetricsSocket();
-  const crawlStatus = metrics?.status || "IDLE";
-
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "radial-gradient(1200px circle at 20% 0%, rgba(37, 99, 235, 0.25), transparent 45%), #020617",
-        color: "#e5e7eb",
-        padding: 22,
-        display: "grid",
-        placeItems: "start center",
-      }}
-    >
-      <div style={{ width: "min(980px, 100%)", display: "grid", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <div style={{ fontSize: 22, fontWeight: 900 }}>Google in a Day</div>
-          <div style={{ color: connected ? "#34d399" : "#9ca3af", fontWeight: 800 }}>
-            WS: {connected ? "Connected" : "Disconnected"}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 14 }}>
-          <div style={{ display: "grid", gap: 14 }}>
-            <MetricsDashboard metrics={metrics} />
-            <CrawlControls wsStatus={crawlStatus} />
-          </div>
-          <div style={{ display: "grid", gap: 14 }}>
-            <SearchPanel />
-            <LogsPanel />
-          </div>
-        </div>
-      </div>
-    </div>
+    <MetricsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<CrawlerPage />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="logs" element={<LogsPage />} />
+            <Route path="crawler" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </MetricsProvider>
   );
 }
-

@@ -31,6 +31,8 @@ export function SearchPanel() {
     <div
       style={{
         width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         border: "1px solid #374151",
         borderRadius: 8,
         padding: 14,
@@ -42,13 +44,17 @@ export function SearchPanel() {
         <div style={{ color: "#9ca3af", fontSize: 13 }}>{status}</div>
       </div>
 
-      <form onSubmit={onSubmit} style={{ marginTop: 10, display: "flex", gap: 10 }}>
+      <form
+        onSubmit={onSubmit}
+        style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "stretch" }}
+      >
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Try: python concurrency"
           style={{
-            flex: 1,
+            flex: "1 1 220px",
+            minWidth: 0,
             background: "#0b1220",
             border: "1px solid #22314d",
             borderRadius: 8,

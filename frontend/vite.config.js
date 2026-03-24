@@ -7,17 +7,31 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/crawl": "http://127.0.0.1:8000",
-      "/search": "http://127.0.0.1:8000",
-      "/stats": "http://127.0.0.1:8000",
-      "/logs": "http://127.0.0.1:8000",
+      "/crawl": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+      "/search": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+      "/stats": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+      "/logs": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
       "/ws/metrics": {
         target: "http://127.0.0.1:8000",
         ws: true,
+        changeOrigin: true,
       },
       "/ws/logs": {
         target: "http://127.0.0.1:8000",
         ws: true,
+        changeOrigin: true,
       },
     },
   },

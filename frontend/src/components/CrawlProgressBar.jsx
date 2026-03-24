@@ -1,5 +1,6 @@
-export function CrawlProgressBar({ crawled, queued, status }) {
-  const total = Math.max(1, crawled + queued);
+export function CrawlProgressBar({ crawled, queued, workersActive = 0, status }) {
+  const pending = Math.max(0, Number(queued) + Number(workersActive));
+  const total = Math.max(1, crawled + pending);
   const progress = Math.min(1, Math.max(0, crawled / total));
 
   const s = String(status || "IDLE").toUpperCase();
@@ -28,11 +29,19 @@ export function CrawlProgressBar({ crawled, queued, status }) {
   };
 
   return (
-    <div style={{ width: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+    <div style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 6,
+        }}
+      >
         <div style={{ fontWeight: 600 }}>Crawl Progress</div>
         <div style={{ color: "#9ca3af" }}>
-          {crawled} crawled / {queued} queued
+          {crawled} crawled · {queued} waiting · {workersActive} active
         </div>
       </div>
       <div style={barStyle}>

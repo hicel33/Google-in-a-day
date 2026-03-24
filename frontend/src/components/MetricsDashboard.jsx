@@ -9,15 +9,16 @@ export function MetricsDashboard({ metrics }) {
     dropped = 0,
     workers_active = 0,
     workers_max = 0,
+    queue_max = 1000,
     back_pressure = false,
     status = "IDLE",
     elapsed_seconds = 0,
   } = metrics || {};
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <CrawlProgressBar crawled={crawled} queued={queued} status={status} />
-      <QueueDepthGauge queued={queued} />
+    <div style={{ display: "grid", gap: 12, minWidth: 0, width: "100%", boxSizing: "border-box" }}>
+      <CrawlProgressBar crawled={crawled} queued={queued} workersActive={workers_active} status={status} />
+      <QueueDepthGauge queued={queued} workersActive={workers_active} queueMax={queue_max} />
 
       <div
         style={{

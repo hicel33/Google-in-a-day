@@ -58,6 +58,8 @@ export function CrawlControls({ wsStatus }) {
     <div
       style={{
         width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         border: "1px solid #374151",
         borderRadius: 8,
         padding: 14,
@@ -88,7 +90,13 @@ export function CrawlControls({ wsStatus }) {
           />
         </label>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 10,
+          }}
+        >
           <label style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 13, color: "#9ca3af" }}>Depth k</div>
             <input
@@ -128,7 +136,13 @@ export function CrawlControls({ wsStatus }) {
           </label>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 10,
+          }}
+        >
           <label style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 13, color: "#9ca3af" }}>Workers</div>
             <input

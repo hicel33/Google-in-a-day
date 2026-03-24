@@ -143,6 +143,7 @@ class Crawler:
         visited: set[str] | None = None,
         metrics: CrawlMetrics | None = None,
         log_event: Callable[[dict[str, Any]], None] | None = None,
+        on_indexed: Callable[[IndexEntry], None] | None = None,
     ) -> tuple[dict[str, IndexEntry], CrawlMetrics]:
         loop = asyncio.get_running_loop()
 
@@ -254,7 +255,7 @@ class Crawler:
                             title = parser.title.strip()
                             body_text = parser.get_body_text().strip()
 
-                            index[final_canon] = IndexEntry(
+                            entry = IndexEntry(
                                 url=final_canon,
                                 origin_url=origin,
                                 depth=depth,
@@ -262,7 +263,10 @@ class Crawler:
                                 body_text=body_text,
                                 crawled_at=time.time(),
                             )
+                            index[final_canon] = entry
                             metrics.crawled += 1
+                            if on_indexed is not None:
+                                on_indexed(entry)
                             emit(
                                 "INFO",
                                 "INDEXED",

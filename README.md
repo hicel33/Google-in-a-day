@@ -35,7 +35,7 @@ python -m backend.main --seed-url "https://example.com" --k 1 --scope all
 
 ## On-disk crawl index
 
-Indexed pages are appended to **`storage/index.jsonl`** (JSON Lines, one `IndexEntry` per line). That folder is **wiped when the API process starts** and again at each **Start crawl**, so nothing carries over between backend restarts. Override the directory with the **`GOOGLE_IN_A_DAY_STORAGE`** environment variable if needed.
+Indexed pages are appended to **`storage/index.csv`** (CSV with a header row). That folder is **wiped when the API process starts** and again at each **Start crawl**, so nothing carries over between backend restarts. Override the directory with the **`GOOGLE_IN_A_DAY_STORAGE`** environment variable if needed.
 
 ## Project layout
 

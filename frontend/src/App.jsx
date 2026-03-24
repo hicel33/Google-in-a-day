@@ -1,9 +1,12 @@
 import { MetricsDashboard } from "./components/MetricsDashboard.jsx";
 import { SearchPanel } from "./components/SearchPanel.jsx";
+import { CrawlControls } from "./components/CrawlControls.jsx";
+import { LogsPanel } from "./components/LogsPanel.jsx";
 import { useMetricsSocket } from "./hooks/useMetricsSocket.js";
 
 export default function App() {
   const { metrics, connected } = useMetricsSocket();
+  const crawlStatus = metrics?.status || "IDLE";
 
   return (
     <div
@@ -25,8 +28,14 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 14 }}>
-          <MetricsDashboard metrics={metrics} />
-          <SearchPanel />
+          <div style={{ display: "grid", gap: 14 }}>
+            <MetricsDashboard metrics={metrics} />
+            <CrawlControls wsStatus={crawlStatus} />
+          </div>
+          <div style={{ display: "grid", gap: 14 }}>
+            <SearchPanel />
+            <LogsPanel />
+          </div>
         </div>
       </div>
     </div>

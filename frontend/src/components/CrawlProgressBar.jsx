@@ -2,6 +2,16 @@ export function CrawlProgressBar({ crawled, queued, status }) {
   const total = Math.max(1, crawled + queued);
   const progress = Math.min(1, Math.max(0, crawled / total));
 
+  const s = String(status || "IDLE").toUpperCase();
+  const badge =
+    s === "RUNNING"
+      ? { color: "#34d399", bg: "rgba(52, 211, 153, 0.12)", label: "RUNNING" }
+      : s === "STOPPED"
+        ? { color: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", label: "STOPPED" }
+        : s === "IDLE"
+          ? { color: "#93c5fd", bg: "rgba(147, 197, 253, 0.10)", label: "IDLE" }
+          : { color: "#60a5fa", bg: "rgba(96, 165, 250, 0.10)", label: s };
+
   const barStyle = {
     height: 10,
     borderRadius: 6,
@@ -28,7 +38,21 @@ export function CrawlProgressBar({ crawled, queued, status }) {
       <div style={barStyle}>
         <div style={fillStyle} />
       </div>
-      <div style={{ marginTop: 6, color: "#d1d5db" }}>Status: {status}</div>
+      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div style={{ color: "#d1d5db", fontSize: 13 }}>Status</div>
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            background: badge.bg,
+            color: badge.color,
+            fontWeight: 900,
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          {badge.label}
+        </div>
+      </div>
     </div>
   );
 }

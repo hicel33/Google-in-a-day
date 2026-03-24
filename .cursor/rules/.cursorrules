@@ -1,0 +1,52 @@
+# Cursor Rules (Project: "Google in a Day")
+
+## Core language + typing
+- Python version: Python 3.11+
+- Strict type hints on all public functions.
+
+## HTTP constraint (stdlib only)
+- HTTP requests MUST use `urllib.request` from the Python standard library only.
+- Forbidden: `requests`, `httpx`, `aiohttp`, `httplib2`, or any third-party HTTP library.
+- Since `urllib` is synchronous, all HTTP calls MUST be offloaded via `loop.run_in_executor(None, ...)`.
+- Executor threads MUST NOT read or write any shared state. They return plain data only:
+  - `(html: str, final_url: str, status: int)`
+
+## HTML parsing constraint (stdlib only)
+- HTML parsing MUST use a subclass of `html.parser.HTMLParser` only.
+- Forbidden: Beautiful Soup, `lxml`, Scrapy, PyQuery, or any other third-party HTML parser.
+- Resolve relative URLs with `urllib.parse.urljoin`.
+- Ignore non-HTTP/HTTPS schemes (`mailto:`, `javascript:`, `ftp:`).
+
+## Concurrency model (hard rule)
+- Use `asyncio` natively.
+- Forbidden: `threading.Thread`, `multiprocessing`, or any non-async concurrency primitives.
+
+## Asyncio boundary discipline (hard rule)
+> All shared state lives on the event loop. All I/O lives in thread-pool executors. Never cross the boundary.
+- Shared state MUST be event-loop-only:
+  - `index`, `visited`, `metrics` (and queue bookkeeping) MUST only be read/written from asyncio event-loop coroutines.
+- Executor isolation:
+  - Executor threads MUST NOT touch shared state; they return plain values to the event loop.
+
+## Back-pressure correctness
+- Use `asyncio.Queue(maxsize=N)` (bounded).
+- Enqueue MUST be non-blocking:
+  - Use `put_nowait()` to enqueue.
+  - Catch `asyncio.QueueFull`, drop the URL, and increment `dropped_count`.
+- Never block on queue operations.
+
+## Search correctness + fairness
+- Search runs while crawling continues; search reads from the live `index` on the event loop thread.
+- For large indexes (> 5000 entries), periodically yield to avoid starving crawler coroutines:
+  - every ~500 scanned entries, do `await asyncio.sleep(0)`.
+
+## Frontend constraint
+- React implementation MUST use functional components and hooks only.
+- No class components.
+
+## API constraint
+- Backend MUST be FastAPI.
+- Metrics MUST stream via WebSocket on `/ws/metrics`.
+
+## Debug / QA
+- System MUST run cleanly under `PYTHONASYNCIODEBUG=1`.

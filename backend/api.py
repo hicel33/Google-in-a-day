@@ -8,7 +8,7 @@ from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from .crawler import Crawler, CrawlerConfig
-from .file_storage import append_index_entry, get_storage_root, reset_storage
+from .file_storage import append_index_entry, get_storage_csv_path, reset_storage
 from .index import IndexEntry
 from .metrics import CrawlMetrics
 from .search import search_index
@@ -43,8 +43,8 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def _startup_reset_disk() -> None:
         # Fresh on-disk store every backend process start (PRD-style local dev).
-        root = reset_storage(get_storage_root())
-        app.state.storage_root = root
+        storage_path = reset_storage(get_storage_csv_path())
+        app.state.storage_path = storage_path
 
     # Shared in-memory state (event-loop only).
     app.state.visited = set[str]()
@@ -54,7 +54,7 @@ def create_app() -> FastAPI:
     app.state.log_seq = 0
     app.state.crawl_task: asyncio.Task[tuple[dict[str, IndexEntry], CrawlMetrics]] | None = None
     app.state.crawl_lock = asyncio.Lock()
-    app.state.storage_root = get_storage_root()
+    app.state.storage_path = get_storage_csv_path()
 
     def log_event(payload: dict[str, Any]) -> None:
         # Must be called only from the event loop thread.
@@ -97,11 +97,11 @@ def create_app() -> FastAPI:
             app.state.log_seq = 0
             log_event({"level": "INFO", "message": "RESET_CRAWL"})
 
-            root = reset_storage(get_storage_root())
-            app.state.storage_root = root
+            storage_path = reset_storage(get_storage_csv_path())
+            app.state.storage_path = storage_path
 
             def persist_indexed(entry: IndexEntry) -> None:
-                append_index_entry(root, entry)
+                append_index_entry(storage_path, entry)
 
             config = CrawlerConfig(
                 seed_url=req.seed_url,

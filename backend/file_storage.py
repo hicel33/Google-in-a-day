@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import csv
 import os
-import shutil
 from pathlib import Path
 
 from .index import IndexEntry
 
 ENV_STORAGE = "GOOGLE_IN_A_DAY_STORAGE"
-INDEX_CSV = "index.csv"
 
 CSV_FIELDS = [
     "url",
@@ -27,35 +25,31 @@ def _clean_body_text(s: str) -> str:
     return " ".join(s.replace("\r\n", "\n").replace("\r", "\n").split())
 
 
-def get_storage_root() -> Path:
-    """Directory for on-disk crawl data (default: ./data/storage relative to cwd)."""
-    raw = os.environ.get(ENV_STORAGE, "data/storage").strip()
+def get_storage_csv_path() -> Path:
+    """Path to the crawl index CSV (default ./data/storage.csv relative to cwd)."""
+    raw = os.environ.get(ENV_STORAGE, "data/storage.csv").strip()
     return Path(raw).expanduser().resolve()
 
 
-def reset_storage(root: Path | None = None) -> Path:
+def reset_storage(csv_path: Path | None = None) -> Path:
     """
-    Clear all files under the storage directory, then ensure it exists empty.
+    Truncate storage and write a fresh CSV header.
     Called on server startup and when a new crawl session starts.
     """
-    root = root or get_storage_root()
-    if root.exists():
-        shutil.rmtree(root)
-    root.mkdir(parents=True, exist_ok=True)
-
-    # Always create the file with a header so it's readable immediately.
-    csv_path = root / INDEX_CSV
-    with csv_path.open("w", encoding="utf-8", newline="") as f:
+    path = csv_path or get_storage_csv_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
+    with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(CSV_FIELDS)
-    return root
+    return path
 
 
-def append_index_entry(root: Path, entry: IndexEntry) -> None:
+def append_index_entry(csv_path: Path, entry: IndexEntry) -> None:
     """Append one indexed page as one CSV row (event-loop thread; sync I/O)."""
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / INDEX_CSV
-    with path.open("a", encoding="utf-8", newline="") as f:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("a", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
             [

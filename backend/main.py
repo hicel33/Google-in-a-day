@@ -5,7 +5,7 @@ import asyncio
 from typing import Sequence
 
 from .crawler import Crawler, CrawlerConfig, Scope
-from .file_storage import append_index_entry, get_storage_csv_path, reset_storage
+from .file_storage import append_index_entry, get_storage_p_data_path, reset_storage
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -35,7 +35,7 @@ async def main_async(args: argparse.Namespace) -> None:
         queue_maxsize=args.queue_size,
         timeout_s=args.timeout_s,
     )
-    storage_path = reset_storage(get_storage_csv_path())
+    storage_path = reset_storage(get_storage_p_data_path())
     crawler = Crawler(config)
     index, metrics = await crawler.run(on_indexed=lambda e: append_index_entry(storage_path, e))
 

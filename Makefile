@@ -1,5 +1,5 @@
 # Local development (Linux/macOS; Python 3.11+ and Node 18+ recommended)
-.PHONY: install backend frontend dev
+.PHONY: install backend frontend relevance dev
 
 install:
 	python3 -m venv .venv
@@ -8,6 +8,9 @@ install:
 
 backend:
 	./.venv/bin/python -m backend.serve --host 127.0.0.1 --port 8000
+
+relevance:
+	./.venv/bin/python -m backend.relevance_serve --host 0.0.0.0 --port 3600
 
 frontend:
 	cd frontend && npm run dev -- --host 127.0.0.1

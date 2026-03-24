@@ -1,63 +1,54 @@
 from __future__ import annotations
 
-import csv
 import os
+import re
+from collections import Counter
 from pathlib import Path
 
 from .index import IndexEntry
 
 ENV_STORAGE = "GOOGLE_IN_A_DAY_STORAGE"
-
-CSV_FIELDS = [
-    "url",
-    "origin_url",
-    "depth",
-    "title",
-    "body_text",
-    "crawled_at",
-]
+_DEFAULT_P_DATA = "data/storage/p.data"
 
 
-def _clean_body_text(s: str) -> str:
-    """
-    Keep CSV rows single-line and readable by replacing newlines with spaces.
-    """
-    return " ".join(s.replace("\r\n", "\n").replace("\r", "\n").split())
+def _word_counts(entry: IndexEntry) -> Counter[str]:
+    """Lowercase tokens (letters/digits, min length 2) from title + body."""
+    text = f"{entry.title}\n{entry.body_text}".lower()
+    tokens = re.findall(r"[a-z0-9]{2,}", text, flags=re.ASCII)
+    return Counter(tokens)
 
 
-def get_storage_csv_path() -> Path:
-    """Path to the crawl index CSV (default ./data/storage.csv relative to cwd)."""
-    raw = os.environ.get(ENV_STORAGE, "data/storage.csv").strip()
+def get_storage_p_data_path() -> Path:
+    """Path to p.data (default ./data/storage/p.data relative to cwd)."""
+    raw = os.environ.get(ENV_STORAGE, _DEFAULT_P_DATA).strip()
     return Path(raw).expanduser().resolve()
 
 
-def reset_storage(csv_path: Path | None = None) -> Path:
+def reset_storage(p_data_path: Path | None = None) -> Path:
     """
-    Truncate storage and write a fresh CSV header.
+    Remove existing p.data and create an empty file.
     Called on server startup and when a new crawl session starts.
     """
-    path = csv_path or get_storage_csv_path()
+    path = p_data_path or get_storage_p_data_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         path.unlink()
-    with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_FIELDS)
+    path.touch()
     return path
 
 
-def append_index_entry(csv_path: Path, entry: IndexEntry) -> None:
-    """Append one indexed page as one CSV row (event-loop thread; sync I/O)."""
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    with csv_path.open("a", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(
-            [
-                entry.url,
-                entry.origin_url,
-                entry.depth,
-                entry.title,
-                _clean_body_text(entry.body_text),
-                entry.crawled_at,
-            ]
-        )
+def append_index_entry(p_data_path: Path, entry: IndexEntry) -> None:
+    """
+    Append one line per distinct word on this page:
+    word, url, origin, depth, frequency (tab-separated).
+    """
+    p_data_path.parent.mkdir(parents=True, exist_ok=True)
+    counts = _word_counts(entry)
+    if not counts:
+        return
+    lines = [
+        f"{w}\t{entry.url}\t{entry.origin_url}\t{entry.depth}\t{counts[w]}\n"
+        for w in sorted(counts)
+    ]
+    with p_data_path.open("a", encoding="utf-8") as f:
+        f.writelines(lines)

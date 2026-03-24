@@ -12,5 +12,3 @@ __pycache__/
 htmlcov/
 .env
 crawl_snapshot.json
-storage/
-data/storage/

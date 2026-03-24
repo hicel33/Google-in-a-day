@@ -1,0 +1,3 @@
+# Python 3.11+ (stdlib crawler per PRD; FastAPI serves API + WebSocket)
+fastapi>=0.115.0,<1
+uvicorn[standard]>=0.30.0,<1

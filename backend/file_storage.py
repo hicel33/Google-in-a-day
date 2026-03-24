@@ -28,8 +28,8 @@ def _clean_body_text(s: str) -> str:
 
 
 def get_storage_root() -> Path:
-    """Directory for on-disk crawl data (default: ./storage relative to cwd)."""
-    raw = os.environ.get(ENV_STORAGE, "storage").strip()
+    """Directory for on-disk crawl data (default: ./data/storage relative to cwd)."""
+    raw = os.environ.get(ENV_STORAGE, "data/storage").strip()
     return Path(raw).expanduser().resolve()
 
 

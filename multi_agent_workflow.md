@@ -5,25 +5,25 @@ This HW2 solution was delivered with a multi-agent development workflow. The fin
 
 ## Agent Roster
 
-1. **Backend Auditor Agent**
+1. **Claude Code (Backend Auditor Agent)**
    - Responsibility: detect runtime blockers and correctness risks.
    - Focus: import errors, missing modules, crawl/search contract bugs.
-2. **Workflow Designer Agent**
+2. **GPT-4o (Workflow Designer Agent)**
    - Responsibility: propose assignment-ready agent structure and artifacts.
    - Focus: role definitions, prompt templates, handoff contracts.
-3. **Concurrency Architect Agent**
+3. **Gemini (Concurrency Architect Agent)**
    - Responsibility: design safe “search while indexing” strategy.
    - Focus: consistency model, snapshot/epoch publication, performance trade-offs.
-4. **Lead Integrator Agent (final authority)**
+4. **Deepseek (Lead Integrator Agent, final authority)**
    - Responsibility: implement changes, reconcile conflicts, run checks, finalize docs.
 
 ## Example Prompts Used
 
-- Backend Auditor Agent:
+- Claude Code (Backend Auditor Agent):
   - "Audit this codebase for blockers that prevent live crawl/search and required deliverables."
-- Workflow Designer Agent:
+- GPT-4o (Workflow Designer Agent):
   - "Provide a practical multi-agent plan and file structure for this assignment."
-- Concurrency Architect Agent:
+- Gemini (Concurrency Architect Agent):
   - "Design a robust single-machine architecture that supports querying during active indexing."
 
 ## Interaction Protocol

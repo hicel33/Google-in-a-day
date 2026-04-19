@@ -1,59 +1,80 @@
-# Google-in-a-Day
+# Multi-Agent Crawler and Search (HW2)
 
-A web crawler with a live search API and React dashboard (see `product_prd.md`).
+This project implements a single-machine web crawler + live search system using Python `asyncio` and standard-library crawling/parsing primitives (`urllib.request`, `html.parser`), with a React UI for operations.
 
-## Prerequisites
+## What this supports
 
-- **Python** 3.11+ (3.13 OK)
-- **Node.js** 18+ and **npm**
+- `index(origin, k)` style crawling with depth limit and deduplication (`visited` set).
+- Back pressure via:
+  - bounded `asyncio.Queue(maxsize=...)`
+  - concurrency cap `asyncio.Semaphore(...)`
+  - dropped-url counter when queue is full.
+- `search(query)` while indexing is active (live over in-memory index).
+- Result shape includes `(relevant_url, origin_url, depth)` plus score.
+- UI pages for crawl controls, search, logs, queue depth, worker activity, and back pressure.
+- Persistence of assignment-style index lines to `data/storage/p.data`.
 
-## Run on Linux (localhost)
+## Run (Windows PowerShell)
 
-From the repository root:
+From repository root:
 
-```bash
-chmod +x scripts/run-local.sh
-./scripts/run-local.sh
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+cd frontend
+npm install
+cd ..
 ```
 
-This creates a `.venv`, installs Python deps from `requirements.txt`, starts the API on **http://127.0.0.1:8000**, then the UI on **http://127.0.0.1:5173**. Open the UI, go to **Crawler**, set your seed URL, and click **Start crawl**.
+Terminal 1:
 
-### Two terminals (alternative)
-
-```bash
-make install          # once
-make backend          # terminal 1 — API :8000
-make frontend         # terminal 2 — Vite :5173
+```powershell
+.\.venv\Scripts\python -m backend.serve --host 127.0.0.1 --port 8000
 ```
 
-### Relevance search over `p.data` (assignment-style)
+Terminal 2:
 
-After crawling, run a second API (same `GOOGLE_IN_A_DAY_STORAGE` / default `data/storage/p.data`):
-
-```bash
-make relevance        # or: python -m backend.relevance_serve --port 3600
+```powershell
+cd frontend
+npm run dev -- --host 127.0.0.1
 ```
 
-Example: `GET http://localhost:3600/search?query=python&sortBy=relevance`  
-Ranks lines with `score = frequency*10 + 1000 - depth*5`.
+Open:
+- UI: `http://127.0.0.1:5173`
+- API: `http://127.0.0.1:8000`
 
-### Crawl-only CLI (no UI)
+## Optional relevance API over `p.data`
 
-```bash
-. .venv/bin/activate   # after make install
-python -m backend.main --seed-url "https://example.com" --k 1 --scope all
+```powershell
+.\.venv\Scripts\python -m backend.relevance_serve --host 127.0.0.1 --port 3600
 ```
 
-## On-disk crawl index
+Example:
+- `http://127.0.0.1:3600/search?query=python`
 
-Each indexed page appends **`data/storage/p.data`** lines (tab-separated):
+## Main API endpoints
 
-`word`, `url`, `origin_url`, `depth`, `frequency` (word counts from title + body).
+- `POST /crawl/start` with `seed_url`, `k`, `scope`, `workers`, `queue_size`, `timeout_s`
+- `POST /crawl/stop`
+- `GET /search?q=...`
+- `GET /stats`
+- `GET /logs`
+- `WS /ws/metrics`
+- `WS /ws/logs`
 
-That folder/file is **wiped when the API process starts** and again at each **Start crawl**. Override the path to `p.data` with **`GOOGLE_IN_A_DAY_STORAGE`** if needed.
+## Design for live search during active indexing
 
-## Project layout
+Current model is event-loop-owned shared state:
+- crawler workers update `index` on the event loop only;
+- search reads a snapshot `list(index.values())` to avoid mutation errors;
+- large searches periodically `await asyncio.sleep(0)` to avoid starving crawler tasks.
 
-- `backend/` — Python: crawler, search, FastAPI (`python -m backend.serve`)
-- `frontend/` — Vite + React
-- `requirements.txt` — Python dependencies (FastAPI, Uvicorn)
+Production direction is documented in `recommendation.md` and `multi_agent_workflow.md` (epoch-based immutable snapshot publishing).
+
+## Required deliverables in this repo
+
+- `product_prd.md`
+- `recommendation.md`
+- `multi_agent_workflow.md`
+- `agents/` (agent definitions/prompts)

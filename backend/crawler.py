@@ -281,7 +281,8 @@ class Crawler:
                                 continue
 
                             for link in parser.links:
-                                await try_enqueue(link, next_depth, origin)
+                                # origin_url for discovered links should be the current page.
+                                await try_enqueue(link, next_depth, final_canon)
 
                             metrics.queued = queue.qsize()
                             metrics.back_pressure = queue.full()
